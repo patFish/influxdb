@@ -162,6 +162,28 @@ func (a Values) InfluxQLType() (influxql.DataType, error) {
 	return influxql.Unknown, fmt.Errorf("unsupported value type %T", a[0])
 }
 
+// BlockType returns the TSM block type the values map to.
+func (a Values) BlockType() byte {
+	if len(a) == 0 {
+		return blockUndefined
+	}
+
+	switch a[0].(type) {
+	case FloatValue:
+		return BlockFloat64
+	case IntegerValue:
+		return BlockInteger
+	case UnsignedValue:
+		return BlockUnsigned
+	case BooleanValue:
+		return BlockBoolean
+	case StringValue:
+		return BlockString
+	}
+
+	return blockUndefined
+}
+
 // BlockType returns the type of value encoded in a block or an error
 // if the block type is unknown.
 func BlockType(block []byte) (byte, error) {
