@@ -182,6 +182,19 @@ func (r *ring) applySerial(f func(string, *entry) error) error {
 	return nil
 }
 
+func (r *ring) applyForKey(key []byte, f func(*entry) error) error {
+	p := r.getPartition(key)
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	e := p.entry(key)
+	if e == nil || e.count() == 0 {
+		return nil
+	}
+
+	return e.apply(f)
+}
+
 func (r *ring) split(n int) []*ring {
 	var keys int
 	storers := make([]*ring, n)

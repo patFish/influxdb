@@ -122,10 +122,10 @@ func (e *Engine) tagValuesNoPredicate(ctx context.Context, orgID, bucketID influ
 			return nil
 		}
 
-		stats.ScannedValues += entry.values.Len()
-		stats.ScannedBytes += entry.values.Len() * 8 // sizeof timestamp
+		stats.ScannedValues += entry.Len()
+		stats.ScannedBytes += entry.Len() * 8 // sizeof timestamp
 
-		if entry.values.Contains(start, end) {
+		if entry.Contains(start, end) {
 			tsmValues[string(curVal)] = struct{}{}
 		}
 		return nil
@@ -230,15 +230,26 @@ func (e *Engine) tagValuesPredicate(ctx context.Context, orgID, bucketID influxd
 			continue
 		}
 
-		keybuf = models.AppendMakeKey(keybuf[:0], orgBucketEsc, tags)
+		// orgBucketEsc is already escaped, so no need to use models.AppendMakeKey, which
+		// unescapes and escapes the value again. The degenerate case is if the orgBucketEsc
+		// has escaped values, causing two allocations per key
+		keybuf = append(keybuf[:0], orgBucketEsc...)
+		keybuf = tags.AppendHashKey(keybuf)
 		sfkey = AppendSeriesFieldKeyBytes(sfkey[:0], keybuf, tags.Get(models.FieldKeyTagKeyBytes))
 
-		values := e.Cache.Values(sfkey)
-		stats.ScannedValues += values.Len()
-		stats.ScannedBytes += values.Len() * 8 // sizeof timestamp
+		found := false
+		_ = e.Cache.ApplyEntryFnForKey(sfkey, func(entry *entry) error {
+			stats.ScannedValues += entry.values.Len()
+			stats.ScannedBytes += entry.values.Len() * 8 // sizeof timestamp
 
-		if values.Contains(start, end) {
-			tsmValues[string(curVal)] = struct{}{}
+			if entry.values.Contains(start, end) {
+				tsmValues[string(curVal)] = struct{}{}
+				found = true
+			}
+			return nil
+		})
+
+		if found {
 			continue
 		}
 
@@ -393,10 +404,10 @@ func (e *Engine) tagKeysNoPredicate(ctx context.Context, orgID, bucketID influxd
 			return nil
 		}
 
-		stats.ScannedValues += entry.values.Len()
-		stats.ScannedBytes += entry.values.Len() * 8 // sizeof timestamp
+		stats.ScannedValues += entry.Len()
+		stats.ScannedBytes += entry.Len() * 8 // sizeof timestamp
 
-		if entry.values.Contains(start, end) {
+		if entry.Contains(start, end) {
 			keyset.UnionKeys(tags)
 		}
 		return nil
@@ -490,7 +501,11 @@ func (e *Engine) tagKeysPredicate(ctx context.Context, orgID, bucketID influxdb.
 			continue
 		}
 
-		keybuf = models.AppendMakeKey(keybuf[:0], orgBucketEsc, tags)
+		// orgBucketEsc is already escaped, so no need to use models.AppendMakeKey, which
+		// unescapes and escapes the value again. The degenerate case is if the orgBucketEsc
+		// has escaped values, causing two allocations per key
+		keybuf = append(keybuf[:0], orgBucketEsc...)
+		keybuf = tags.AppendHashKey(keybuf)
 		sfkey = AppendSeriesFieldKeyBytes(sfkey[:0], keybuf, tags.Get(models.FieldKeyTagKeyBytes))
 
 		values := e.Cache.Values(sfkey)

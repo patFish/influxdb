@@ -94,10 +94,10 @@ func (e *Engine) MeasurementNames(ctx context.Context, orgID, bucketID influxdb.
 			return nil
 		}
 
-		stats.ScannedValues += entry.values.Len()
-		stats.ScannedBytes += entry.values.Len() * 8 // sizeof timestamp
+		stats.ScannedValues += entry.Len()
+		stats.ScannedBytes += entry.Len() * 8 // sizeof timestamp
 
-		if entry.values.Contains(start, end) {
+		if entry.Contains(start, end) {
 			tsmValues[string(name)] = struct{}{}
 		}
 		return nil

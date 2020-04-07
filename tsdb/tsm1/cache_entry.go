@@ -109,12 +109,48 @@ func (e *entry) filter(min, max int64) {
 	e.mu.Unlock()
 }
 
+func (e *entry) apply(f func(entry *entry) error) error {
+	e.deduplicate()
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return f(e)
+}
+
 // size returns the size of this entry in bytes.
 func (e *entry) size() int {
 	e.mu.RLock()
 	sz := e.values.Size()
 	e.mu.RUnlock()
 	return sz
+}
+
+// Contains returns true if values exist for the time interval [min, max]
+// inclusive. The entry is deduplicated prior to calling contains.
+func (e *entry) Contains(min, max int64) bool {
+	e.deduplicate()
+	e.mu.RLock()
+	contains := e.values.Contains(min, max)
+	e.mu.RUnlock()
+	return contains
+}
+
+// MaxTime returns the maximum timestamp for values in this entry.
+// The entry is deduplicated prior to calling contains.
+// If entry is empty, MaxTime will return InvalidMinNanoTime.
+func (e *entry) MaxTime() int64 {
+	e.deduplicate()
+	max := int64(InvalidMinNanoTime)
+	e.mu.RLock()
+	if e.values.Len() > 0 {
+		max = e.values.MaxTime()
+	}
+	e.mu.RUnlock()
+	return max
+}
+
+// Len returns the number of values in entry.
+func (e *entry) Len() int {
+	return e.count()
 }
 
 // InfluxQLType returns for the entry the data type of its values.

@@ -471,6 +471,33 @@ func (c *Cache) ApplyEntryFn(f func(key string, entry *entry) error) error {
 	return store.applySerial(f)
 }
 
+// ApplyEntryFnForKey applies the function f if there is an associated entry
+// with the specified key in the Cache. f may be called twice if an outstanding
+// snapshot exists and the key is present in the cache and the snapshot.
+//
+// It is safe to read the fields of in f, which holds a read lock for the
+// duration of the function call.
+func (c *Cache) ApplyEntryFnForKey(key []byte, f func(entry *entry) error) error {
+	var snapshotStore *ring
+
+	c.mu.RLock()
+	store := c.store
+	if c.snapshot != nil {
+		snapshotStore = c.snapshot.store
+	}
+	c.mu.RUnlock()
+
+	err := store.applyForKey(key, f)
+	if err != nil {
+		return err
+	}
+
+	if snapshotStore != nil {
+		return snapshotStore.applyForKey(key, f)
+	}
+	return nil
+}
+
 // CacheLoader processes a set of WAL segment files, and loads a cache with the data
 // contained within those files.
 type CacheLoader struct {
